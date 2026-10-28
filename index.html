@@ -1,0 +1,113 @@
+<!DOCTYPE HTML>
+<html lang="en-uk">
+    <head>
+        <title> -> -> -> -> </title>
+        <meta charset="utf-8">
+        <style>
+            *,footer{background:#191919}footer,header p,img{width:100%}div p,img{padding-bottom:1em}*
+            {padding:0;margin:0;font-family:Helvetica,sans-serif;color:#fff;cursor:default}body{opacity:1;
+            animation-name:fade;animation-iteration-count:1.0;animation-timing-function:ease-in;animation-duration:1s}
+            @keyframes fade{0%{opacity:0}100%{opacity:1}}@media (min-width:1260px){footer,header{position:fixed}h1
+            {font-size:4em}header{width:400px;margin-top:8px;text-align:right}div{width:65%;margin-bottom:200px;
+            margin-left:400px;float:left;padding:1em 0 1em 1em}section{width:1200px;margin:200px auto;padding:8px}
+            footer{bottom:0}}@media (max-width:1260px){header,header a{width:100%}h1,header a,header p{text-align:right}
+            div,header p{margin-top:20px}h1{font-size:8em}header{margin-top:8px;margin-bottom:50px}header 
+            p{font-size:1.5em}section{width:740px;margin:200px auto;padding:8px}footer{padding-bottom:100px}}h2,
+            h3{font-size:2em}div p,footer p{font-size:1.32em}h1{color:#853838}h3{margin-bottom:1em;color:#8c8c8c}
+            header p{margin-top:20px;color:#616161}header a{text-decoration:none}footer{text-align:center}footer 
+            p{color:#616161;margin:1em}a img:hover,a p:hover{cursor:pointer}
+        </style>
+    </head>
+    <body>
+        <section>
+        <header>
+            <h1>COMPUTER GRAPHICS ARTICLES</h1>
+            <a href=""><p>25/09/2026 - Ray Tracing Soft Shadows</p></a>
+            <p>Vulkan rendering<br>experiments and<br>light graphics<br>theory</p>
+        </header>
+        <div>
+            <h2>Ray Tracing Soft Shadows</h2>
+            <h3>27.09.2026</h3>
+            <p>
+            <a href="assets/SoftShadows/0.jpg"><img src="assets/SoftShadows/0.jpg"></a>
+                While fucking around with my Cascade Shadow Mapping/CSM implementation I began feeling like I 
+                could get higher fidelity and more robust shadows moving from raster shadow mapping to software ray 
+                tracing. An obvious statement, however concerns around performance and a lack of support for hardware 
+                ray tracing on my M1 Max GPU had previously pushed me to do things the old way.
+            </p>
+            <p>
+                Cascade Shadow Maps are a great technique, but the code for building and switching between the cascades 
+                can get unpleasant. There are also issues around different resolutions/filtering techniques on each cascade 
+                introducing seams and discontinuities. There are of course ways of managing these issues, but 
+                modern game engines are increasingly moving to ray tracing even where it is not supported in hardware and 
+                I felt it was time I did the same.
+            </p>
+            <p>
+                Shadows at the high level are occluded areas that receive less light from a given source. The simple case assumes 
+                occluded areas are solid surfaces and receive zero contribution from the light source:
+            </p>
+            <a href="assets/SoftShadows/1.jpg"><img src="assets/SoftShadows/1.jpg"></a>
+            <p>
+                This gives us what is known as ‘Hard Shadows’. These are trivial to compute in terms of ray tracing, as 
+                we can just perform a ray intersection test between the surface and the light position. If that ray 
+                hits anything then the surface is in shadow. This is the mathematical operation that is emulated in 
+                graphics pipelines with shadow mapping, where depth buffers are rasterized in place of ray tracing 
+                operations to keep things cheap, with the view matrix of the light being used elsewhere to test for occlusion.
+            </p>
+            <p>
+                Looking at them in a render though, the results are crisp but visually 
+                unsatisfying and not particularly physically accurate:
+            </p>
+            <a href="assets/SoftShadows/2.jpg"><img src="assets/SoftShadows/2.jpg"></a>
+            <a href="assets/SoftShadows/3.jpg"><img src="assets/SoftShadows/3.jpg"></a>
+            <p>
+                This is because in the real world light sources are not single euclidian points. They omit light from 
+                an area and attempting to model something like a lightbulb, which omits light from a coiled 
+                filament and refracted through a glass container, quickly becomes daunting. To keep things simple, lets assume 
+                our light source is not a single point, but a sphere defined by a point and a radius. Real
+                shadows are made up of two primary areas, the umbra (the space fully occluded by the object, reciving no light) and the 
+                penumbra (the space partially occluded by the object, possibly recieving some bounced or scattered light):
+            </p>
+            <a href="assets/SoftShadows/4.jpg"><img src="assets/SoftShadows/4.jpg"></a>
+            <p>
+                Considering this from the perspective of shading a pixel, we can represent this by taking 
+                pseudo-random rays offset from the vector to the light, and using an average occlusion 
+                value from each of these rays gives us a reasonable approximation of the soft shadow phenomenon:
+            </p>
+            <a href="assets/SoftShadows/5.jpg"><img src="assets/SoftShadows/5.jpg"></a>
+            <p>
+                How exactly to compute these random vectors is a dense and technical topic, with many naive approaches that achieve 
+                something usable with acceptable runtime cost. Though imperfect in terms of distributions, clustering and 
+                concentration of samples, a decent way to generate some random directions in a hemisphere looks something like this:
+            </p>
+            <a href="assets/SoftShadows/6.jpg"><img src="assets/SoftShadows/6.jpg"></a>
+            <p>
+                Generating a field of random points between -1 and 1, and normalizing them gives us random points on a sphere, and using
+                a simple dot product we can detect obtuse vectors and invert them into the desired hemisphere.
+            </p>
+            <p>
+                Implementing this in my Vulkan engine gives shadows that are far more visually interesting, with behaviours and characteristics
+                that most people would consider more realistic than basic hard shadows:
+            </p>
+            <a href="assets/SoftShadows/7.jpg"><img src="assets/SoftShadows/7.jpg"></a>
+            <a href="assets/SoftShadows/8.jpg"><img src="assets/SoftShadows/8.jpg"></a>
+            <p>
+                While softer shadows aren't impossible to achieve in raster pipelines, the code for doing so with ray tracing is far more
+                intuitive and robust. Not only do they look graceful, but they have none of the complications of raster shadow mapping. 
+                Issues like shadow acne, surface biasing, and aliasing all vanish completely here, and we get a simple calculation that 
+                is per-pixel and handles any viewing distance or angle you can throw at it.
+            </p>
+            <a href="assets/SoftShadows/11.jpg"><img src="assets/SoftShadows/11.jpg"></a>
+            <a href="assets/SoftShadows/10.jpg"><img src="assets/SoftShadows/10.jpg"></a>
+            <a href="assets/SoftShadows/9.jpg"><img src="assets/SoftShadows/9.jpg"></a>
+            <p>
+                The implementation shown here currently runs in real time on a modest ARM GPU, but it does so via intersecting 
+                rays against a scene made exclusively of Axis Aligned Bounding Boxes. In the future, I aim to expand this tech 
+                demo to use this existing structure as a Top Level Acceleration Structure/TLAS, and support triangle meshes via 
+                Signed Distance Field/SDF ray marching.
+            </p>
+        </div>
+        </section>
+        <footer><p>2026</p></footer>
+    </body>
+</html>
